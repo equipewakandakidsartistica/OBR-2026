@@ -1,0 +1,55 @@
+ results_mov = model_mov.predict(
+                img_mov,
+                conf=0.70,
+                verbose=False
+            )
+
+            for r in results_mov:
+
+                if len(r.boxes) == 0:
+                    continue
+
+                for box in r.boxes:
+
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+
+                    classe = int(box.cls[0])
+
+                    nome = model_mov.names[classe]
+
+                    conf = float(box.conf[0])
+
+                    print(f"[MOV] {nome}")
+
+                    cv2.rectangle(
+                        img_mov,
+                        (x1,y1),
+                        (x2,y2),
+                        (255,0,0),
+                        2
+                    )
+
+                    cv2.putText(
+                        img_mov,
+                        f"{nome} {conf:.2f}",
+                        (x1,y1-10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255,0,0),
+                        2
+                    )
+
+                    if arduino is not None:
+
+                        comando = f"MOV:{nome}"
+
+                        if comando != ultimo_comando:
+
+                            arduino.write((comando+"\n").encode())
+                            arduino.flush()
+
+                            print(f"Enviado -> {comando}")
+
+                            ultimo_comando = comando
+
+

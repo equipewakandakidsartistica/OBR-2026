@@ -1,0 +1,113 @@
+import cv2
+import time
+import threading
+from ultralytics import YOLO
+ 
+# --- MODELOS ---
+model_qr = YOLO("./runs/detect/train-13/weights/best.pt")
+model_mov = YOLO("./runs/detect/train-12/weights/best.pt")
+ 
+# --- CÂMERAS ---
+# Se for usar apenas uma câmera física para testar ambos, mude os dois para o mesmo índice (ex: 0)
+cap_qr = cv2.VideoCapture("/dev/video0", cv2.CAP_V4L2)
+cap_mov = cv2.VideoCapture("/dev/video2", cv2.CAP_V4L2)
+ 
+# --- CONFIGURAÇÃO ---
+for cap in [cap_qr, cap_mov]:
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+ 
+# --- THREADS DE CAPTURA ---
+frame_qr = None
+frame_mov = None
+ 
+def captura_qr():
+    global frame_qr
+    while True:
+        ret, frame = cap_qr.read()
+        if ret:
+            frame_qr = frame
+ 
+def captura_mov():
+    global frame_mov
+    while True:
+        ret, frame = cap_mov.read()
+        if ret:
+            frame_mov = frame
+ 
+threading.Thread(target=captura_qr, daemon=True).start()
+threading.Thread(target=captura_mov, daemon=True).start()
+ 
+print("Sistema iniciado")
+ 
+# --- CONTROLE ---
+frame_count = 0
+qr_ativo = False  # Estado anterior do QR para saber se ele "sumiu"
+ 
+while True:
+    # Aguarda até que ambas as threads tenham capturado pelo menos um frame
+    if frame_qr is None or frame_mov is None:
+        continue
+ 
+    frame_count += 1
+    
+    # Criamos cópias locais para exibição/processamento seguro entre threads
+    img_qr = frame_qr.copy()
+    img_mov = frame_mov.copy()
+ 
+    qr_detectado_neste_frame = False
+ 
+    # --- PROCESSAMENTO QR (Apenas a cada 2 frames para aliviar o Raspberry Pi) ---
+    if frame_count % 2 == 0:
+        results_qr = model_qr(img_qr, conf=0.7, verbose=False)
+        
+        for r in results_qr:
+            if len(r.boxes) > 0:
+                qr_detectado_neste_frame = True
+                
+                # Se mudou de 'não ativo' para 'ativo'
+                if not qr_ativo:
+                    print(">>> QR DETECTADO")
+                
+                for box in r.boxes:
+                    id_classe = int(box.cls.item())
+                    nome = model_qr.names[id_classe]
+                    print(f"[QR] {nome}")
+ 
+    # --- PROCESSAMENTO MOVIMENTO ---
+    # Só processa o movimento se NÃO detectou QR code neste frame
+    if not qr_detectado_neste_frame:
+        if qr_ativo:
+            print(">>> QR SUMIU - VOLTANDO MOV")
+        
+        # Processa movimento a cada 4 frames para não travar o hardware
+        if frame_count % 4 == 0:
+            results_mov = model_mov(img_mov, conf=0.7, verbose=False)
+            
+            for r in results_mov:
+                for box in r.boxes:
+                    id_classe = int(box.cls.item())
+                    nome = model_mov.names[id_classe]
+                    print(f"[MOV] {nome}")
+                    
+                    # Desenha um retângulo no frame para você ver a detecção
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cv2.rectangle(img_mov, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(img_mov, nome, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+ 
+    # Atualiza o estado global com o resultado do frame atual
+    qr_ativo = qr_detectado_neste_frame
+ 
+    # --- EXIBIÇÃO DAS IMAGENS (Substitutos para o Cheese) ---
+    cv2.imshow("Feed QR Code", img_qr)
+    cv2.imshow("Feed Movimento", img_mov)
+ 
+    # Pressione 'q' no teclado para fechar o script com segurança
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+ 
+cap_qr.release()
+cap_mov.release()
+cv2.destroyAllWindows()
+ 

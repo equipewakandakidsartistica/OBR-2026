@@ -1,0 +1,7 @@
+train: datasets_mov/train/images
+val: datasets_mov/valid/images
+test: datasets_mov/test/images
+
+names: 
+  0: Mov1
+  1: Mov2
