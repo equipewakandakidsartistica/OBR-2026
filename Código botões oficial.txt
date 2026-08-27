@@ -1,0 +1,118 @@
+from gpiozero import Button
+from signal import pause
+import subprocess
+import os
+import time
+  if processo_robo is not None and processo_robo.poll() is None:
+        print("Robô já está funcionando.")
+        return
+ 
+    print()
+    print("======================================")
+    print("🟢 BOTÃO INICIAR PRESSIONADO")
+    print("======================================")
+    print("Iniciando sistema de visão...")
+ 
+    try:
+        processo_robo = subprocess.Popen(
+            [PYTHON, PROGRAMA],
+            cwd=PROJETO
+        )
+ 
+        print(f"PID do sistema: {processo_robo.pid}")
+        print("Sistema iniciado.")
+ 
+    except Exception as erro:
+        print("ERRO AO INICIAR O ROBÔ:")
+        print(erro)
+ 
+ 
+# ==========================================
+# DESLIGAR ROBÔ / RASPBERRY
+# ==========================================
+ 
+def desligar_raspberry():
+    global processo_robo
+# ==========================================
+# CONFIGURAÇÃO
+# ==========================================
+ 
+BOTAO_INICIAR = 17
+BOTAO_DESLIGAR = 27
+ 
+PROJETO = "/home/wakandakids/projeto_robot"
+PYTHON = f"{PROJETO}/venv/bin/python"
+PROGRAMA = f"{PROJETO}/visao_raspberry.py"
+ 
+botao_iniciar = Button(BOTAO_INICIAR, pull_up=True)
+botao_desligar = Button(BOTAO_DESLIGAR, pull_up=True)
+ 
+processo_robo = None
+ 
+ 
+# ==========================================
+# INICIAR ROBÔ
+# ==========================================
+ 
+def iniciar_robo():
+    global processo_robo
+ 
+    # Verificar se já está rodando
+ 
+print()
+    print("======================================")
+    print("🔴 BOTÃO DESLIGAR PRESSIONADO")
+    print("======================================")
+ 
+    # Parar programa de visão
+    if processo_robo is not None and processo_robo.poll() is None:
+ 
+        print("Parando sistema de visão...")
+ 
+        processo_robo.terminate()
+ 
+        try:
+            processo_robo.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            processo_robo.kill()
+ 
+        print("Sistema de visão parado.")
+ 
+    else:
+        print("Sistema de visão já estava parado.")
+ 
+    print("Desligando Raspberry Pi...")
+    time.sleep(1)
+ 
+    subprocess.Popen([
+        "sudo",
+        "shutdown",
+        "-h",
+        "now"
+])
+ 
+ 
+# ==========================================
+# CONFIGURAR BOTÕES
+# ==========================================
+ 
+botao_iniciar.when_pressed = iniciar_robo
+botao_desligar.when_pressed = desligar_raspberry
+ 
+ 
+# ==========================================
+# INÍCIO
+# ==========================================
+ 
+print()
+print("======================================")
+print("       CONTROLE DO ROBÔ")
+print("======================================")
+print("🟢 INICIAR  → GPIO 17 / Pino 11")
+print("🔴 DESLIGAR → GPIO 27 / Pino 13")
+print()
+print("Sistema aguardando...")
+print("Aperte o botão verde para iniciar.")
+print("======================================")
+ 
+pause()
